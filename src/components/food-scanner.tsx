@@ -68,19 +68,21 @@ export function FoodScanner() {
     let stream: MediaStream;
 
     const getCameraPermission = async () => {
-      if (!isCameraOpen || !videoRef.current) return;
-
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+         setHasCameraPermission(false);
+         toast({
+          variant: "destructive",
+          title: "Camera Not Supported",
+          description: "Your browser does not support camera access.",
+        });
+        return;
+      }
       try {
         stream = await navigator.mediaDevices.getUserMedia({ video: true });
         setHasCameraPermission(true);
 
-        const video = videoRef.current;
-        if (video) {
-          video.srcObject = stream;
-          // Ensure the video plays once the stream is attached
-          video.onloadedmetadata = () => {
-             video.play();
-          };
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
         }
       } catch (error) {
         console.error("Error accessing camera:", error);
@@ -93,12 +95,15 @@ export function FoodScanner() {
       }
     };
 
-    getCameraPermission();
+    if (isCameraOpen) {
+      getCameraPermission();
+    }
 
-    // Cleanup function to stop video tracks when component unmounts or camera is closed
     return () => {
-      if (stream) {
+      if (videoRef.current && videoRef.current.srcObject) {
+        const stream = videoRef.current.srcObject as MediaStream;
         stream.getTracks().forEach((track) => track.stop());
+        videoRef.current.srcObject = null;
       }
     };
   }, [isCameraOpen, toast]);
@@ -333,7 +338,7 @@ export function FoodScanner() {
                       ) : isCameraOpen ? (
                         <div className="space-y-4">
                           <div className="relative w-full aspect-video rounded-lg overflow-hidden bg-muted border">
-                            <video ref={videoRef} className="w-full h-full object-cover" muted playsInline />
+                            <video ref={videoRef} className="w-full h-full object-cover" autoPlay muted playsInline />
                           </div>
                           {hasCameraPermission === false && (
                               <Alert variant="destructive">
