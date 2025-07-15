@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
@@ -64,15 +65,22 @@ export function FoodScanner() {
   });
 
   useEffect(() => {
-    if (!isCameraOpen) return;
-
     let stream: MediaStream;
+
     const getCameraPermission = async () => {
+      if (!isCameraOpen || !videoRef.current) return;
+
       try {
         stream = await navigator.mediaDevices.getUserMedia({ video: true });
         setHasCameraPermission(true);
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
+
+        const video = videoRef.current;
+        if (video) {
+          video.srcObject = stream;
+          // Ensure the video plays once the stream is attached
+          video.onloadedmetadata = () => {
+             video.play();
+          };
         }
       } catch (error) {
         console.error("Error accessing camera:", error);
@@ -87,13 +95,14 @@ export function FoodScanner() {
 
     getCameraPermission();
 
+    // Cleanup function to stop video tracks when component unmounts or camera is closed
     return () => {
-      if (videoRef.current && videoRef.current.srcObject) {
-        const mediaStream = videoRef.current.srcObject as MediaStream;
-        mediaStream.getTracks().forEach((track) => track.stop());
+      if (stream) {
+        stream.getTracks().forEach((track) => track.stop());
       }
     };
   }, [isCameraOpen, toast]);
+
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -324,7 +333,7 @@ export function FoodScanner() {
                       ) : isCameraOpen ? (
                         <div className="space-y-4">
                           <div className="relative w-full aspect-video rounded-lg overflow-hidden bg-muted border">
-                            <video ref={videoRef} className="w-full h-full object-cover" autoPlay muted playsInline />
+                            <video ref={videoRef} className="w-full h-full object-cover" muted playsInline />
                           </div>
                           {hasCameraPermission === false && (
                               <Alert variant="destructive">
