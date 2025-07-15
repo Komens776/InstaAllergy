@@ -65,48 +65,59 @@ export function FoodScanner() {
   });
 
   useEffect(() => {
-    let stream: MediaStream;
+    let stream: MediaStream | null = null;
+    let videoEl: HTMLVideoElement | null = null;
 
-    const getCameraPermission = async () => {
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-         setHasCameraPermission(false);
-         toast({
-          variant: "destructive",
-          title: "Camera Not Supported",
-          description: "Your browser does not support camera access.",
-        });
-        return;
-      }
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: true });
-        setHasCameraPermission(true);
+    const startCamera = async () => {
+        try {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                console.error("Camera not supported on this browser.");
+                setHasCameraPermission(false);
+                toast({
+                  variant: "destructive",
+                  title: "Camera Not Supported",
+                  description: "Your browser does not support camera access.",
+                });
+                return;
+            }
+            
+            stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            setHasCameraPermission(true);
 
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
+            videoEl = videoRef.current;
+            if (videoEl) {
+                videoEl.srcObject = stream;
+                videoEl.play();
+            }
+        } catch (error) {
+            console.error("Error accessing camera:", error);
+            setHasCameraPermission(false);
+            toast({
+                variant: "destructive",
+                title: "Camera Access Denied",
+                description: "Please enable camera permissions in your browser settings to use this app.",
+            });
         }
-      } catch (error) {
-        console.error("Error accessing camera:", error);
-        setHasCameraPermission(false);
-        toast({
-          variant: "destructive",
-          title: "Camera Access Denied",
-          description: "Please enable camera permissions in your browser settings to use this app.",
-        });
-      }
+    };
+    
+    const stopCamera = () => {
+        if (stream) {
+            stream.getTracks().forEach(track => track.stop());
+        }
+        videoEl = videoRef.current;
+        if (videoEl) {
+            videoEl.srcObject = null;
+        }
     };
 
     if (isCameraOpen) {
-      getCameraPermission();
+        startCamera();
     }
 
     return () => {
-      if (videoRef.current && videoRef.current.srcObject) {
-        const stream = videoRef.current.srcObject as MediaStream;
-        stream.getTracks().forEach((track) => track.stop());
-        videoRef.current.srcObject = null;
-      }
+        stopCamera();
     };
-  }, [isCameraOpen, toast]);
+}, [isCameraOpen, toast]);
 
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -343,7 +354,7 @@ export function FoodScanner() {
                           {hasCameraPermission === false && (
                               <Alert variant="destructive">
                                 <AlertTriangle className="h-4 w-4" />
-                                <AlertTitle>Camera Access Required</AlertTitle>
+                                <AlertTitle>Camera Access Denied</AlertTitle>
                                 <AlertDescription>
                                   Please allow camera access to use this feature.
                                 </AlertDescription>
