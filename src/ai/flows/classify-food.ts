@@ -46,11 +46,11 @@ const prompt = ai.definePrompt({
   name: 'classifyFoodPrompt',
   input: {schema: ClassifyFoodInputSchema},
   output: {schema: ClassifyFoodOutputSchema},
-  prompt: `You are an expert food classifier and culinary historian. Your task is to identify the food item in the image.
+  prompt: `You are an expert food classifier and culinary historian with deep knowledge of global cuisines, especially all foods from Ghana. Your task is to identify the food item in the image.
 
 1.  Determine if the image contains food. Set the \`isFood\` boolean field accordingly.
 2.  If it is food, identify it and provide the following details:
-    *   \`classification\`: The most likely name of the food.
+    *   \`classification\`: The most likely name of the food. If it is a Ghanaian food, provide its local name.
     *   \`confidence\`: Your confidence level (0-1) for this classification.
     *   \`foodDetails\`:
         *   \`name\`: The name of the food.

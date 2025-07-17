@@ -44,18 +44,18 @@ const prompt = ai.definePrompt({
   name: 'recommendSafeFoodsPrompt',
   input: {schema: RecommendSafeFoodsInputSchema},
   output: {schema: RecommendSafeFoodsOutputSchema},
-  prompt: `You are an AI food recommendation expert and creative chef. Your task is to recommend 3-5 delicious and safe dishes based on a user's allergy profile, dietary preferences, and nutrition goals.
+  prompt: `You are an AI food recommendation expert and creative chef with deep expertise in global cuisines, especially all foods from Ghana. Your task is to recommend 3-5 delicious and safe dishes based on a user's allergy profile, dietary preferences, and nutrition goals.
 
 User Profile:
-- Allergens to avoid: {{allergyProfile.allergens}}
+- Allergens to avoid: {{#if allergyProfile.allergens}}{{allergyProfile.allergens}}{{else}}None specified{{/if}}
 - Dietary Preferences: {{allergyProfile.dietaryPreferences}}
 - Nutrition Goals: {{nutritionGoals}}
 - Preferred Cuisine: {{cuisinePreference}}
 
 Your task:
-1.  Generate a list of 3 creative and appealing food recommendations that are safe for the user.
+1.  Generate a list of 3 creative and appealing food recommendations. If a preferred cuisine is mentioned (e.g., Ghanaian), prioritize dishes from that cuisine.
 2.  For each recommendation, provide a name, a short appetizing description, a reason why it's a good choice for the user, and a 1-2 word AI hint for image generation.
-3.  Crucially, ensure that the *typical* ingredients of your recommended dishes DO NOT contain any of the user's allergens.
+3.  Crucially, ensure that the *typical* ingredients of your recommended dishes DO NOT contain any of the user's specified allergens. If no allergens are specified, you can recommend any dish.
 4.  Provide a brief 'overallReasoning' that summarizes your thought process for the recommendations as a whole.
 
 Do not recommend simple ingredients (e.g., "apple"); recommend complete dishes (e.g., "Baked Apple with Cinnamon").

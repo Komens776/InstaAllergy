@@ -94,7 +94,7 @@ export default function RecommendationsPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm">
-            <span className="font-semibold">Your active allergies:</span> {allergens.join(", ") || "None"}
+            <span className="font-semibold">Your active allergies:</span> {allergens.join(", ") || "No allergies specified. You can set them in your profile."}
           </p>
            <div className="space-y-2">
             <Label htmlFor="cuisine">Preferred Cuisine (optional)</Label>
@@ -106,7 +106,7 @@ export default function RecommendationsPage() {
               disabled={isLoading}
             />
            </div>
-          <Button onClick={handleGetRecommendations} disabled={isLoading || allergens.length === 0}>
+          <Button onClick={handleGetRecommendations} disabled={isLoading}>
             {isLoading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -119,9 +119,6 @@ export default function RecommendationsPage() {
               </>
             )}
           </Button>
-           {allergens.length === 0 && (
-             <p className="text-sm text-destructive">Please set your allergy profile before getting recommendations.</p>
-           )}
         </CardContent>
       </Card>
 
@@ -152,7 +149,7 @@ export default function RecommendationsPage() {
                         </CardHeader>
                         <CardContent className="flex-grow space-y-2">
                             <p className="text-sm text-muted-foreground">{food.description}</p>
-                            <p className="text-sm"><span className="font-semibold">Why it's safe:</span> {food.reasoning}</p>
+                            <p className="text-sm"><span className="font-semibold">Why it's a good choice:</span> {food.reasoning}</p>
                         </CardContent>
                       </Card>
                     )

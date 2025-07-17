@@ -36,7 +36,7 @@ const generateFoodImageFlow = ai.defineFlow(
   async ({ foodName }) => {
     const { media } = await ai.generate({
       model: googleAI.model('gemini-2.0-flash-preview-image-generation'),
-      prompt: `A high-quality, appetizing, vibrant, professional photograph of ${foodName}.`,
+      prompt: `A vibrant, high-quality, professional food photograph of ${foodName}. The food should look appetizing and be presented on a clean, visually appealing background. Focus on realistic textures and colors.`,
       config: {
         responseModalities: ['IMAGE', 'TEXT'],
       },
