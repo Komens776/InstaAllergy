@@ -44,8 +44,11 @@ export default function LoginPage() {
   });
 
   function onSubmit(values: z.infer<typeof formSchema>) {
-    // Mock login
-    login(values.email, "Mock User");
+    // Derive name from email for a better user experience
+    const name = values.email.split('@')[0];
+    const capitalizedName = name.charAt(0).toUpperCase() + name.slice(1);
+
+    login(values.email, capitalizedName);
     router.push("/dashboard");
   }
 
