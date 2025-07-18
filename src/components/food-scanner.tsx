@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import Image from "next/image";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -53,6 +53,7 @@ export function FoodScanner() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
   const { toast } = useToast();
   const { allergens: userAllergens } = useUser();
@@ -64,60 +65,72 @@ export function FoodScanner() {
     }
   });
 
+  const stopCamera = useCallback(() => {
+    if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+        streamRef.current = null;
+    }
+    if (videoRef.current) {
+        videoRef.current.srcObject = null;
+    }
+  }, []);
+
   useEffect(() => {
-    let stream: MediaStream | null = null;
-    let videoEl: HTMLVideoElement | null = null;
+    return () => {
+        stopCamera();
+    };
+  }, [stopCamera]);
 
-    const startCamera = async () => {
-        try {
-            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                console.error("Camera not supported on this browser.");
-                setHasCameraPermission(false);
-                toast({
-                  variant: "destructive",
-                  title: "Camera Not Supported",
-                  description: "Your browser does not support camera access.",
-                });
-                return;
-            }
-            
-            stream = await navigator.mediaDevices.getUserMedia({ video: true });
-            setHasCameraPermission(true);
-
-            videoEl = videoRef.current;
-            if (videoEl) {
-                videoEl.srcObject = stream;
-                videoEl.play();
-            }
-        } catch (error) {
-            console.error("Error accessing camera:", error);
+  const startCamera = useCallback(async () => {
+    if (streamRef.current) {
+        return;
+    }
+    try {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            console.error("Camera not supported on this browser.");
             setHasCameraPermission(false);
             toast({
+                variant: "destructive",
+                title: "Camera Not Supported",
+                description: "Your browser does not support camera access.",
+            });
+            return;
+        }
+        
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        streamRef.current = stream;
+        setHasCameraPermission(true);
+
+        if (videoRef.current) {
+            videoRef.current.srcObject = stream;
+            videoRef.current.play().catch(e => console.error("Video play failed:", e));
+        }
+    } catch (error: any) {
+        console.error("Error accessing camera:", error);
+        setHasCameraPermission(false);
+        if (error.name === 'NotAllowedError') {
+             toast({
                 variant: "destructive",
                 title: "Camera Access Denied",
                 description: "Please enable camera permissions in your browser settings to use this app.",
             });
+        } else {
+            toast({
+                variant: "destructive",
+                title: "Camera Error",
+                description: `An error occurred: ${error.message}`,
+            });
         }
-    };
-    
-    const stopCamera = () => {
-        if (stream) {
-            stream.getTracks().forEach(track => track.stop());
-        }
-        videoEl = videoRef.current;
-        if (videoEl) {
-            videoEl.srcObject = null;
-        }
-    };
+    }
+  }, [toast]);
 
+  useEffect(() => {
     if (isCameraOpen) {
         startCamera();
-    }
-
-    return () => {
+    } else {
         stopCamera();
-    };
-}, [isCameraOpen, toast]);
+    }
+  }, [isCameraOpen, startCamera, stopCamera]);
 
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -171,6 +184,7 @@ export function FoodScanner() {
       fileInputRef.current.value = "";
     }
     setIsCameraOpen(false);
+    stopCamera();
   }
 
   const resetResults = () => {
@@ -356,7 +370,7 @@ export function FoodScanner() {
                                 <AlertTriangle className="h-4 w-4" />
                                 <AlertTitle>Camera Access Denied</AlertTitle>
                                 <AlertDescription>
-                                  Please allow camera access to use this feature.
+                                  Please allow camera access to use this feature. You may need to reset permissions in your browser's site settings (often a lock icon in the address bar).
                                 </AlertDescription>
                               </Alert>
                           )}
