@@ -1,8 +1,9 @@
+
 "use client";
 
 import React, { useState } from "react";
 import Image from "next/image";
-import { Loader2, Sparkles, Lightbulb } from "lucide-react";
+import { Loader2, Sparkles, Lightbulb, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
@@ -22,6 +23,7 @@ export default function RecommendationsPage() {
   const [overallReasoning, setOverallReasoning] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [cuisine, setCuisine] = useState("");
+  const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
   const { user, allergens } = useUser();
 
@@ -38,8 +40,18 @@ export default function RecommendationsPage() {
     setIsLoading(true);
     setRecommendations(null);
     setOverallReasoning(null);
+    setError(null);
 
     try {
+      if (allergens.length === 0) {
+        toast({
+          title: "Update Your Profile",
+          description: "Please add at least one allergen to your profile to get recommendations.",
+        });
+        setIsLoading(false);
+        return;
+      }
+
       const result = await recommendSafeFoods({
         allergyProfile: {
           allergens: allergens,
@@ -56,6 +68,7 @@ export default function RecommendationsPage() {
             return { ...rec, imageUrl: imageDataUri };
           } catch (e) {
             console.error(`Failed to generate image for ${rec.name}`, e);
+            // Use a placeholder if image generation fails for a single item
             return { ...rec, imageUrl: `https://placehold.co/600x400.png` };
           }
         })
@@ -64,8 +77,13 @@ export default function RecommendationsPage() {
       setRecommendations(enrichedRecs);
       setOverallReasoning(result.overallReasoning);
 
-    } catch (error) {
-      console.error("Failed to get recommendations:", error);
+    } catch (err: any) {
+      console.error("Failed to get recommendations:", err);
+      if (err.message && err.message.includes('CONSUMER_SUSPENDED')) {
+         setError("The API key is missing or invalid. Please add your own Google AI API key to the .env file as instructed in the README.");
+      } else {
+        setError("Could not fetch recommendations. Please try again later.");
+      }
       toast({
         title: "Error",
         description: "Could not fetch recommendations. Please try again.",
@@ -121,6 +139,16 @@ export default function RecommendationsPage() {
           </Button>
         </CardContent>
       </Card>
+
+      {error && (
+        <Alert variant="destructive" className="mb-8">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Action Required: API Key Error</AlertTitle>
+          <AlertDescription>
+            {error} See the `README.md` file for instructions on how to get a free API key from Google AI Studio and add it to a `.env` file.
+          </AlertDescription>
+        </Alert>
+      )}
 
       {recommendations && (
         <div className="space-y-8">
