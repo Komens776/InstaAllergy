@@ -1,12 +1,12 @@
 
 "use client";
 
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef } from "react";
 import Image from "next/image";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { Camera, AlertTriangle, Info, Loader2, Shield, Sparkles, X, Upload, Video, Scan } from "lucide-react";
+import { AlertTriangle, Info, Loader2, Shield, Sparkles, X, Upload, Scan } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 import { classifyFood, ClassifyFoodOutput } from "@/ai/flows/classify-food";
@@ -24,6 +24,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Separator } from "./ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { CameraView } from "./camera-view";
 
 const formSchema = z.object({
   image: z.instanceof(File).optional().refine(file => file === undefined || file.size > 0, "Image is required"),
@@ -48,12 +49,8 @@ export function FoodScanner() {
   const [ocrError, setOcrError] = useState<string | null>(null);
 
   const [isCameraOpen, setIsCameraOpen] = useState(false);
-  const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
 
   const { toast } = useToast();
   const { allergens: userAllergens } = useUser();
@@ -65,110 +62,29 @@ export function FoodScanner() {
     }
   });
 
-  const stopCamera = useCallback(() => {
-    if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop());
-        streamRef.current = null;
-    }
-    if (videoRef.current) {
-        videoRef.current.srcObject = null;
-    }
-  }, []);
-
-  useEffect(() => {
-    return () => {
-        stopCamera();
-    };
-  }, [stopCamera]);
-
-  const startCamera = useCallback(async () => {
-    if (streamRef.current) {
-        return;
-    }
-    try {
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-            console.error("Camera not supported on this browser.");
-            setHasCameraPermission(false);
-            toast({
-                variant: "destructive",
-                title: "Camera Not Supported",
-                description: "Your browser does not support camera access.",
-            });
-            return;
-        }
-        
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-        streamRef.current = stream;
-        setHasCameraPermission(true);
-
-        if (videoRef.current) {
-            videoRef.current.srcObject = stream;
-            videoRef.current.play().catch(e => console.error("Video play failed:", e));
-        }
-    } catch (error: any) {
-        console.error("Error accessing camera:", error);
-        setHasCameraPermission(false);
-        if (error.name === 'NotAllowedError') {
-             toast({
-                variant: "destructive",
-                title: "Camera Access Denied",
-                description: "Please enable camera permissions in your browser settings to use this app.",
-            });
-        } else {
-            toast({
-                variant: "destructive",
-                title: "Camera Error",
-                description: `An error occurred: ${error.message}`,
-            });
-        }
-    }
-  }, [toast]);
-
-  useEffect(() => {
-    if (isCameraOpen) {
-        startCamera();
-    } else {
-        stopCamera();
-    }
-  }, [isCameraOpen, startCamera, stopCamera]);
-
-
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      form.setValue("image", file, { shouldValidate: true });
       const reader = new FileReader();
       reader.onloadend = () => {
         setPreview(reader.result as string);
+        form.setValue("image", file, { shouldValidate: true });
         resetResults();
       };
       reader.readAsDataURL(file);
     }
   };
-
-  const handleCapture = () => {
-    if (videoRef.current && canvasRef.current) {
-      const video = videoRef.current;
-      const canvas = canvasRef.current;
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      const context = canvas.getContext("2d");
-      
-      if (context) {
-        context.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const dataUri = canvas.toDataURL("image/jpeg");
-        setPreview(dataUri);
-
-        canvas.toBlob((blob) => {
-          if (blob) {
-            const file = new File([blob], "capture.jpg", { type: "image/jpeg" });
-            form.setValue("image", file, { shouldValidate: true });
-            resetResults();
-          }
-        }, "image/jpeg", 0.95);
-      }
-      setIsCameraOpen(false);
-    }
+  
+  const handleCapture = (dataUri: string) => {
+    setPreview(dataUri);
+    fetch(dataUri)
+      .then(res => res.blob())
+      .then(blob => {
+        const file = new File([blob], "capture.jpg", { type: "image/jpeg" });
+        form.setValue("image", file, { shouldValidate: true });
+        resetResults();
+      });
+    setIsCameraOpen(false);
   };
 
   const openCamera = () => {
@@ -184,7 +100,6 @@ export function FoodScanner() {
       fileInputRef.current.value = "";
     }
     setIsCameraOpen(false);
-    stopCamera();
   }
 
   const resetResults = () => {
@@ -206,7 +121,7 @@ export function FoodScanner() {
       return;
     }
 
-    if(!data.image) {
+    if(!preview) {
       setClassifyError("Please select an image first.");
       return;
     }
@@ -214,25 +129,23 @@ export function FoodScanner() {
     resetResults();
 
     try {
-      const reader = new FileReader();
-      reader.readAsDataURL(data.image);
-      reader.onload = async () => {
-        const photoDataUri = reader.result as string;
-        
-        // 1. Classify Food
-        const cfOutput = await classifyFood({ photoDataUri });
-        setClassificationResult(cfOutput);
+      // The preview is already a data URI
+      const photoDataUri = preview;
+      
+      // 1. Classify Food
+      const cfOutput = await classifyFood({ photoDataUri });
+      setClassificationResult(cfOutput);
 
-        // 2. Detect Allergens
-        if (cfOutput.isFood && cfOutput.foodDetails) {
-          const daOutput = await detectAllergensAndGenerateAlert({
-            ingredients: cfOutput.foodDetails.ingredients.join(', '),
-            allergens: userAllergens,
-          });
-          setAllergenResult(daOutput);
-        }
-        setIsClassifyLoading(false);
-      };
+      // 2. Detect Allergens
+      if (cfOutput.isFood && cfOutput.foodDetails) {
+        const daOutput = await detectAllergensAndGenerateAlert({
+          ingredients: cfOutput.foodDetails.ingredients.join(', '),
+          allergens: userAllergens,
+        });
+        setAllergenResult(daOutput);
+      }
+      setIsClassifyLoading(false);
+
     } catch (e) {
       console.error(e);
       setClassifyError("An error occurred during analysis. Please try again.");
@@ -255,8 +168,7 @@ export function FoodScanner() {
       return;
     }
 
-    const imageFile = form.getValues("image");
-    if (!imageFile) {
+    if (!preview) {
         setOcrError("Please select an image first.");
         return;
     }
@@ -265,28 +177,21 @@ export function FoodScanner() {
     resetResults();
 
     try {
-        const reader = new FileReader();
-        reader.readAsDataURL(imageFile);
-        reader.onload = async () => {
-            const photoDataUri = reader.result as string;
+        const photoDataUri = preview;
+        // 1. Extract text from image
+        const { extractedText } = await extractTextFromImage({ photoDataUri });
+        setExtractedText(extractedText);
 
-            // 1. Extract text from image
-            const { extractedText } = await extractTextFromImage({ photoDataUri });
-            setExtractedText(extractedText);
-
-            // 2. Detect allergens in extracted text
-            if (extractedText) {
-                const daOutput = await detectAllergensAndGenerateAlert({
-                    ingredients: extractedText,
-                    allergens: userAllergens,
-                });
-                setOcrAllergenResult(daOutput);
-            }
-            setIsOcrLoading(false);
-        };
-        reader.onerror = () => {
-             throw new Error("Could not read file");
+        // 2. Detect allergens in extracted text
+        if (extractedText) {
+            const daOutput = await detectAllergensAndGenerateAlert({
+                ingredients: extractedText,
+                allergens: userAllergens,
+            });
+            setOcrAllergenResult(daOutput);
         }
+        setIsOcrLoading(false);
+
     } catch (e) {
         console.error(e);
         setOcrError("An error occurred during label analysis. Please try again.");
@@ -347,7 +252,7 @@ export function FoodScanner() {
                     <div className="w-full">
                       {preview ? (
                         <div className="relative group w-full h-64">
-                          <Image src={preview} alt="Food preview" layout="fill" objectFit="contain" className="rounded-lg p-2" />
+                          <Image src={preview} alt="Food preview" layout="fill" objectFit="contain" className="rounded-lg border bg-muted p-1" />
                            <Button 
                             type="button" 
                             variant="destructive" 
@@ -361,29 +266,10 @@ export function FoodScanner() {
                            </Button>
                         </div>
                       ) : isCameraOpen ? (
-                        <div className="space-y-4">
-                          <div className="relative w-full aspect-video rounded-lg overflow-hidden bg-muted border">
-                            <video ref={videoRef} className="w-full h-full object-cover" autoPlay muted playsInline />
-                          </div>
-                          {hasCameraPermission === false && (
-                              <Alert variant="destructive">
-                                <AlertTriangle className="h-4 w-4" />
-                                <AlertTitle>Camera Access Denied</AlertTitle>
-                                <AlertDescription>
-                                  Please allow camera access to use this feature. You may need to reset permissions in your browser's site settings (often a lock icon in the address bar).
-                                </AlertDescription>
-                              </Alert>
-                          )}
-                          <div className="flex gap-2 justify-center">
-                            <Button type="button" variant="outline" onClick={() => setIsCameraOpen(false)}>
-                              Cancel
-                            </Button>
-                            <Button type="button" onClick={handleCapture} disabled={isClassifyLoading || isOcrLoading || hasCameraPermission !== true}>
-                                <Camera className="mr-2 h-4 w-4" />
-                                Capture Photo
-                            </Button>
-                          </div>
-                        </div>
+                        <CameraView 
+                          onCapture={handleCapture}
+                          onClose={() => setIsCameraOpen(false)}
+                        />
                       ) : (
                         <div
                           className="relative group flex flex-col justify-center items-center w-full h-64 border-2 border-dashed border-input rounded-lg cursor-pointer bg-card hover:border-primary transition-colors"
@@ -407,7 +293,7 @@ export function FoodScanner() {
                                 <div className="flex-grow border-t border-muted-foreground/20"></div>
                             </div>
                             <Button type="button" variant="outline" onClick={(e) => { e.stopPropagation(); openCamera(); }} disabled={isClassifyLoading || isOcrLoading}>
-                                <Video className="mr-2 h-4 w-4" />
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2 h-4 w-4"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path><circle cx="12" cy="13" r="3"></circle></svg>
                                 Use Camera
                             </Button>
                           </div>
@@ -604,7 +490,6 @@ export function FoodScanner() {
           </CardFooter>
         </form>
       </Form>
-      <canvas ref={canvasRef} className="hidden" />
     </Card>
   );
 }
