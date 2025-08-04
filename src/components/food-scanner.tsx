@@ -53,7 +53,7 @@ export function FoodScanner() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { toast } = useToast();
-  const { allergens: userAllergens } = useUser();
+  const { allergens: userAllergens, addScanToHistory } = useUser();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -128,6 +128,9 @@ export function FoodScanner() {
     setIsClassifyLoading(true);
     resetResults();
 
+    let finalAllergenResult: AllergenResult | null = null;
+    let finalClassificationResult: ClassifyFoodOutput | null = null;
+
     try {
       // The preview is already a data URI
       const photoDataUri = preview;
@@ -135,6 +138,7 @@ export function FoodScanner() {
       // 1. Classify Food
       const cfOutput = await classifyFood({ photoDataUri });
       setClassificationResult(cfOutput);
+      finalClassificationResult = cfOutput;
 
       // 2. Detect Allergens
       if (cfOutput.isFood && cfOutput.foodDetails) {
@@ -143,6 +147,7 @@ export function FoodScanner() {
           allergens: userAllergens,
         });
         setAllergenResult(daOutput);
+        finalAllergenResult = daOutput;
       }
       setIsClassifyLoading(false);
 
@@ -155,6 +160,15 @@ export function FoodScanner() {
         variant: "destructive",
       });
       setIsClassifyLoading(false);
+    } finally {
+        if (finalClassificationResult) {
+            addScanToHistory({
+                classification: finalClassificationResult.classification,
+                allergenResult: finalAllergenResult,
+                imageUri: preview,
+                timestamp: Date.now()
+            });
+        }
     }
   };
 
@@ -176,11 +190,15 @@ export function FoodScanner() {
     setIsOcrLoading(true);
     resetResults();
 
+    let finalOcrResult: AllergenResult | null = null;
+    let finalExtractedText = "";
+
     try {
         const photoDataUri = preview;
         // 1. Extract text from image
         const { extractedText } = await extractTextFromImage({ photoDataUri });
         setExtractedText(extractedText);
+        finalExtractedText = extractedText;
 
         // 2. Detect allergens in extracted text
         if (extractedText) {
@@ -189,6 +207,7 @@ export function FoodScanner() {
                 allergens: userAllergens,
             });
             setOcrAllergenResult(daOutput);
+            finalOcrResult = daOutput;
         }
         setIsOcrLoading(false);
 
@@ -201,6 +220,13 @@ export function FoodScanner() {
             variant: "destructive",
         });
         setIsOcrLoading(false);
+    } finally {
+        addScanToHistory({
+            classification: `Label Scan: ${finalExtractedText.substring(0, 30)}...`,
+            allergenResult: finalOcrResult,
+            imageUri: preview,
+            timestamp: Date.now()
+        })
     }
   };
   

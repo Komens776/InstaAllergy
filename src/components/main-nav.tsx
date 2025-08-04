@@ -1,10 +1,11 @@
+
 "use client";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { buttonVariants } from "@/components/ui/button";
-import { LayoutDashboard, User, Sparkles } from "lucide-react";
+import { LayoutDashboard, User, Sparkles, History } from "lucide-react";
 
 const links = [
   {
@@ -21,6 +22,11 @@ const links = [
     href: "/recommendations",
     label: "Recommendations",
     icon: Sparkles,
+  },
+  {
+    href: "/history",
+    label: "Scan History",
+    icon: History,
   },
 ];
 
